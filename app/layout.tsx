@@ -9,7 +9,12 @@ export const metadata: Metadata = {
   title: "Groq AI Chat",
   description: "An AI chat application using the Groq API.",
   icons: {
-    icon: '/mobilegroq.png',
+    icon: [
+      { url: "/mobilegroq.png", type: "image/png", sizes: "32x32" },
+      { url: "/mobilegroq.png", type: "image/png", sizes: "16x16" },
+    ],
+    shortcut: ["/mobilegroq.png"],
+    apple: ["/mobilegroq.png"],
   },
 };
 
