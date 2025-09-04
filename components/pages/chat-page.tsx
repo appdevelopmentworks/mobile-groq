@@ -7,7 +7,7 @@ import { ChatMessage } from '@/components/chat-message';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Paperclip, Send, LoaderCircle } from 'lucide-react';
+import { Paperclip, Send, LoaderCircle, X } from 'lucide-react';
 import Groq from 'groq-sdk';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -16,6 +16,13 @@ export function ChatPage() {
   const { apiKey, model } = useSettingsStore(); // Destructure model here
   const [inputValue, setInputValue] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  // 現在のメッセージに添付ファイルが含まれるか
+  const [hasAttachment, setHasAttachment] = useState(false);
+  // 画像添付（Maverick用: image_urlで送る）
+  const [imageAttachment, setImageAttachment] = useState<{
+    name: string;
+    dataUrl: string;
+  } | null>(null);
   // 自動スクロール用の末尾アンカー
   const bottomRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null); // ファイル入力のrefを追加
@@ -32,33 +39,47 @@ export function ChatPage() {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // ファイルタイプチェック
-    if (!file.type.startsWith('text/')) {
-      alert('テキストファイルのみ添付できます。');
-      // 画像ファイルが選択された場合のユーザーへのフィードバック
-      if (file.type.startsWith('image/')) {
-        alert('画像ファイルは現在サポートされていません。テキストファイルのみ添付可能です。');
-      }
-      e.target.value = ''; // ファイル選択をクリア
+    setHasAttachment(true);
+
+    // 画像は data URL として保持し、送信時に image_url としてAPIに渡す
+    if (file.type.startsWith('image/')) {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const dataUrl = String(event.target?.result || '');
+        setImageAttachment({ name: file.name, dataUrl });
+        // 入力欄には注記のみ追加（実データはAPIへ別途添付）
+        setInputValue((prev) => `${prev}\n[画像を添付: ${file.name}]`);
+        e.target.value = '';
+      };
+      reader.readAsDataURL(file);
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const fileContent = event.target?.result as string;
-      // ファイル内容をinputValueに追加（Markdownのコードフェンスは ~~~ を使用）
-      setInputValue((prev) =>
-        `${prev}\n\n--- 添付ファイル: ${file.name} ---\n~~~\n${fileContent}\n~~~`
-      );
-      e.target.value = ''; // ファイル選択をクリア
-    };
-    reader.readAsText(file);
+    // テキストは従来通りプレーンテキストとして取り込み
+    if (file.type.startsWith('text/')) {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const fileContent = event.target?.result as string;
+        setInputValue((prev) =>
+          `${prev}\n\n--- 添付ファイル: ${file.name} ---\n~~~\n${fileContent}\n~~~`
+        );
+        e.target.value = '';
+      };
+      reader.readAsText(file);
+      return;
+    }
+
+    // その他のファイルタイプは簡易注記のみ（モデル切替は行う）
+    setInputValue((prev) => `${prev}\n[添付: ${file.name}]`);
+    e.target.value = '';
   };
 
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!inputValue.trim() || isLoading) return;
+    if ((!
+      inputValue.trim() && !imageAttachment
+    ) || isLoading) return;
 
     if (!apiKey) {
       alert('APIキーが設定されていません。設定ページでAPIキーを設定してください。');
@@ -73,11 +94,29 @@ export function ChatPage() {
     try {
       const groq = new Groq({ apiKey, dangerouslyAllowBrowser: true });
 
-      const messagesForApi: Groq.Chat.Completions.ChatCompletionMessageParam[] = [...messages, userMessage].map(({ role, content }) => ({ role, content }));
+      const baseMessages: Groq.Chat.Completions.ChatCompletionMessageParam[] = messages.map(({ role, content }) => ({ role, content }));
+
+      // 直近のユーザーメッセージを構築（画像があれば content parts 形式）
+      const currentUserForApi: Groq.Chat.Completions.ChatCompletionMessageParam = imageAttachment
+        ? {
+            role: 'user',
+            content: [
+              { type: 'text', text: userMessage.content },
+              { type: 'image_url', image_url: { url: imageAttachment.dataUrl, detail: 'auto' } },
+            ],
+          }
+        : { role: 'user', content: userMessage.content };
+
+      const messagesForApi = [...baseMessages, currentUserForApi];
+
+      // 添付がある場合は指定モデルへ自動切替、なければ現状の選択を使用
+      const selectedModel = hasAttachment
+        ? 'meta-llama/llama-4-maverick-17b-128e-instruct'
+        : model;
 
       const stream = await groq.chat.completions.create({
         messages: messagesForApi,
-        model: model, // Use the selected model
+        model: selectedModel,
         stream: true,
       });
 
@@ -104,6 +143,9 @@ export function ChatPage() {
       addMessage(errorMessage);
     } finally {
       setIsLoading(false);
+      // 送信処理が完了したらフラグをリセット
+      setHasAttachment(false);
+      setImageAttachment(null);
     }
   };
 
@@ -145,6 +187,22 @@ export function ChatPage() {
             onChange={handleFileChange}
             className="hidden"
           />
+          {imageAttachment && (
+            <div className="flex items-center space-x-2 text-xs px-2 py-1 rounded bg-muted">
+              <span>画像: {imageAttachment.name}</span>
+              <button
+                type="button"
+                onClick={() => {
+                  setImageAttachment(null);
+                  setHasAttachment(false);
+                }}
+                aria-label="添付を削除"
+                className="hover:opacity-70"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </div>
+          )}
           <Input
             autoComplete="off"
             name="message"
