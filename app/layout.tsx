@@ -8,6 +8,9 @@ const inter = Inter({ subsets: ["latin"] });
 export const metadata: Metadata = {
   title: "Groq AI Chat",
   description: "An AI chat application using the Groq API.",
+  icons: {
+    icon: '/mobilegroq.png',
+  },
 };
 
 export default function RootLayout({

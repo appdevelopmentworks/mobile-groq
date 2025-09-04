@@ -24,7 +24,7 @@ export function ChatMessage({ message }: ChatMessageProps) {
         className={cn(
           'px-4 py-3 rounded-lg max-w-md md:max-w-2xl',
           isUser
-            ? 'bg-primary text-primary-foreground'
+            ? 'bg-[#fffaf0] text-primary-foreground'
             : 'bg-muted text-muted-foreground'
         )}
       >
