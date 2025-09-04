@@ -89,8 +89,13 @@ export function ChatPage() {
         if (contentChunk) {
           appendToLastMessage(contentChunk);
           // UIへ反映する時間を与える（逐次描画を促す）
-          // @ts-expect-error requestAnimationFrame はブラウザ環境で提供
-          await new Promise(requestAnimationFrame);
+          await new Promise<void>((resolve) => {
+            if (typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function') {
+              window.requestAnimationFrame(() => resolve());
+            } else {
+              setTimeout(resolve, 0);
+            }
+          });
         }
       }
     } catch (error) {
