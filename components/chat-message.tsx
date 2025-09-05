@@ -24,11 +24,16 @@ export function ChatMessage({ message }: ChatMessageProps) {
         className={cn(
           'px-4 py-3 rounded-lg max-w-md md:max-w-2xl',
           isUser
-            ? 'bg-[#fffaf0] text-primary-foreground'
-            : 'bg-muted text-muted-foreground'
+            ? 'bg-[#fffaf0] text-slate-900 dark:text-slate-900'
+            : 'bg-muted text-foreground'
         )}
       >
-        <div className="prose dark:prose-invert prose-p:m-0 prose-headings:m-0">
+        <div
+          className={cn(
+            'prose prose-foreground prose-p:m-0 prose-headings:m-0',
+            !isUser && 'dark:prose-invert'
+          )}
+        >
           <ReactMarkdown
             remarkPlugins={[remarkGfm]}
             components={{

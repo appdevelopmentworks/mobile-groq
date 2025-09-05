@@ -5,7 +5,12 @@ import { ThemeProvider } from "@/components/theme-provider";
 
 const inter = Inter({ subsets: ["latin"] });
 
+const metadataBase = process.env.NEXT_PUBLIC_SITE_URL
+  ? new URL(process.env.NEXT_PUBLIC_SITE_URL)
+  : undefined;
+
 export const metadata: Metadata = {
+  ...(metadataBase ? { metadataBase } : {}),
   title: "Groq AI Chat",
   description: "An AI chat application using the Groq API.",
   openGraph: {
@@ -27,8 +32,7 @@ export const metadata: Metadata = {
   },
   icons: {
     icon: [
-      { url: "/mobilegroq.png", type: "image/png", sizes: "32x32" },
-      { url: "/mobilegroq.png", type: "image/png", sizes: "16x16" },
+      { url: "/mobilegroq.png", type: "image/png" },
     ],
     shortcut: ["/mobilegroq.png"],
     apple: ["/mobilegroq.png"],
